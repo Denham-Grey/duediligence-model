@@ -24,6 +24,16 @@ if (!URL || !PUB || !SECRET) {
   process.exit(2);
 }
 
+// The suite leaves immutable rows behind, so it must not run against the real project
+// (bdlvolxdazxrfjaabsra, cleaned up on 16 Oct 2026 — see supabase/maintenance/). Point it at a
+// Supabase branch or a scratch project; to override deliberately, set
+// RLS_TEST_ALLOW_PROJECT=<that project's ref>.
+const REF = (URL.match(/^https:\/\/([a-z0-9]+)\.supabase\.co/) || [])[1];
+if (REF === 'bdlvolxdazxrfjaabsra' && process.env.RLS_TEST_ALLOW_PROJECT !== REF) {
+  console.error('Refusing to run: this is the main DD Portal project. Use a branch or scratch project.');
+  process.exit(2);
+}
+
 const opts = { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } };
 const svc = createClient(URL, SECRET, opts);
 

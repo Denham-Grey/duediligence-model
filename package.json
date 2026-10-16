@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:rls": "node --env-file=.env.local tests/rls/run.mjs",
     "test:parity": "node tests/e2e/parity.mjs",
-    "test:e2e": "node tests/e2e/walkthrough.mjs"
+    "test:e2e": "node tests/e2e/walkthrough.mjs",
+    "seed:demo": "node --env-file=.env.local scripts/seed-demo.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

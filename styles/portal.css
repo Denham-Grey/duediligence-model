@@ -1,0 +1,101 @@
+/* Portal styles — the <style> block of DD Portal.dc.html, unchanged except where marked. */
+
+/* Denham & Grey house colours retuned onto the Broadsheet token sheet:
+   grey #474A4F as the ink, yellow #FFD300 as the fill. */
+:root {
+  --color-text: #474A4F;
+  --color-divider: color-mix(in srgb, #474A4F 22%, transparent);
+  --brand-yellow: #FFD300;
+  --color-accent: #2f3237;
+  --color-accent-100: #fff6cc;
+  --color-accent-600: #23262a;
+  --color-accent-700: #2f3237;
+  --color-accent-800: #23262a;
+  --color-accent-2: #8a6d00;
+  --color-accent-2-100: #fff1b8;
+  --color-accent-2-800: #4a3b00;
+  --head-ink: #f3f2f2;
+  --on-yellow: #23262a;
+  /* changed: the family name now comes from next/font (self-hosted) via --font-cormorant */
+  --font-body: var(--font-cormorant), "Cormorant Garamond", Garamond, "Times New Roman", serif;
+  --font-heading: var(--font-cormorant), "Cormorant Garamond", Garamond, "Times New Roman", serif;
+  --font-mono: var(--font-cormorant), "Cormorant Garamond", Garamond, serif;
+}
+body, input, select, textarea, button, .btn, .input, .table, .tag, label { font-family: var(--font-body); }
+html[data-dd-theme="dark"] {
+  --color-bg: #1b1d1f;
+  --color-surface: #26292c;
+  --color-text: #e7e5e2;
+  --color-divider: color-mix(in srgb, #e7e5e2 24%, transparent);
+  --color-accent: #ffd94d;
+  --color-accent-100: #3a3520;
+  --color-accent-600: #ffe27a;
+  --color-accent-700: #ffd94d;
+  --color-accent-800: #ffe27a;
+  --color-accent-2: #ffd300;
+  --color-accent-2-100: #3a3520;
+  --color-accent-2-800: #ffe89a;
+  --color-neutral-100: #23262a;
+  --color-neutral-200: #2c2f33;
+  --color-neutral-300: #3a3e43;
+  --color-neutral-400: #565b61;
+  --color-neutral-500: #8e9399;
+  --color-neutral-600: #a6a9ad;
+  --color-neutral-700: #c2c4c7;
+  --color-neutral-800: #dcdedf;
+  --color-neutral-900: #f0f1f2;
+}
+/* added: before the user picks a theme, follow the OS setting without a script
+   (the prototype did this in componentDidMount). Same values as the block above. */
+@media (prefers-color-scheme: dark) {
+  html:not([data-dd-theme]) {
+    --color-bg: #1b1d1f;
+    --color-surface: #26292c;
+    --color-text: #e7e5e2;
+    --color-divider: color-mix(in srgb, #e7e5e2 24%, transparent);
+    --color-accent: #ffd94d;
+    --color-accent-100: #3a3520;
+    --color-accent-600: #ffe27a;
+    --color-accent-700: #ffd94d;
+    --color-accent-800: #ffe27a;
+    --color-accent-2: #ffd300;
+    --color-accent-2-100: #3a3520;
+    --color-accent-2-800: #ffe89a;
+    --color-neutral-100: #23262a;
+    --color-neutral-200: #2c2f33;
+    --color-neutral-300: #3a3e43;
+    --color-neutral-400: #565b61;
+    --color-neutral-500: #8e9399;
+    --color-neutral-600: #a6a9ad;
+    --color-neutral-700: #c2c4c7;
+    --color-neutral-800: #dcdedf;
+    --color-neutral-900: #f0f1f2;
+  }
+  html:not([data-dd-theme]) .table th { background: #33373b; }
+}
+html[data-dd-theme="dark"] .table th { background: #33373b; }
+body { margin: 0; background: var(--color-bg); }
+a { color: var(--color-accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+input, select, textarea, button { font-family: var(--font-body); }
+input[type="checkbox"] { accent-color: var(--brand-yellow); }
+.period-head { width:100%; min-width:0; box-sizing:border-box; background:transparent; border:1px solid rgba(255,255,255,0.22); border-radius:2px; padding:3px 5px; font:inherit; font-size:12px; color:var(--head-ink); text-align:inherit; caret-color: var(--brand-yellow); }
+.period-head::selection { background: var(--brand-yellow); color:#2f3237; }
+.period-head:hover { border-color: rgba(255,255,255,0.55); background: rgba(255,255,255,0.08); }
+.period-head:focus { outline:2px solid var(--brand-yellow); outline-offset:0; border-color:transparent; background: rgba(255,255,255,0.12); color:#fff; }
+.tbl-fit { width:100%; table-layout:fixed; }
+.tbl-wide { min-width:780px; }
+.tbl-fit th, .tbl-fit td { padding:5px 7px; overflow-wrap:break-word; word-break:normal; hyphens:none; }
+.tbl-fit .input { width:100%; min-width:0; box-sizing:border-box; padding-left:6px; padding-right:6px; }
+.table th { background: #474a4f; color: var(--head-ink); border-bottom: 2px solid var(--brand-yellow); }
+.btn-primary { background: var(--brand-yellow); color: var(--on-yellow); }
+.btn-primary:hover { background: #e8c000; }
+.btn-primary:active { background: #ccaa00; }
+
+/* added: the template's style-hover="…" attributes, as classes. !important because
+   they must win over the element's inline style, as they did in the dc runtime. */
+.hv-color-accent:hover { color: var(--color-accent) !important; }
+.hv-color-accent-700:hover { color: var(--color-accent-700) !important; }
+.hv-border-text:hover { border-color: var(--color-text) !important; }
+.hv-bg-neutral-100:hover { background: var(--color-neutral-100) !important; }
+.hv-bg-accent-100:hover { background: var(--color-accent-100) !important; }

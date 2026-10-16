@@ -85,7 +85,7 @@ export function ChangePasscodeScreen({ v }) {
           {" "}
           <p style={{ margin: "0 0 24px", fontSize: "14px", lineHeight: "1.6", color: "var(--color-neutral-700)" }}>
             <I v={v.changePwWho} />
-            {". The passcode issued to you is temporary and must be replaced before you continue. Four characters minimum; it cannot match the issued passcode."}
+            {". The passcode issued to you is temporary and must be replaced before you continue. Six characters minimum; it cannot match the issued passcode."}
           </p>
           {" "}
           {v.hasPwErr ? (

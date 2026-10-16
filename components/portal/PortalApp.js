@@ -7,6 +7,7 @@ import React from 'react';
 import * as portalData from '@/lib/template/dd-portal-data.js';
 import * as reportRenderer from '@/lib/report/dd-report-render.js';
 import { portalStore } from '@/lib/store';
+import { IDLE_LIMIT_MS, MIN_PASSCODE, MIN_PASSCODE_MESSAGE } from '@/lib/auth/constants';
 import { PortalView } from './PortalView';
 
 export class Component extends React.Component {
@@ -32,10 +33,13 @@ export class Component extends React.Component {
     const next = this.state.theme === 'dark' ? 'light' : 'dark';
     this.applyTheme(next);
     this.setState({ theme: next });
+    // Saved on the user's profile (decision P4); on the sign-in screen it lasts for the visit.
+    if (this.state.me) Component.api('/api/auth/me', { theme: next }, 'PATCH');
   };
 
   componentDidMount() {
     this.setState({ booted: true });
+    this.startIdleWatch();
     try {
       const saved = document.documentElement.getAttribute('data-dd-theme');
       const pref = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
@@ -45,7 +49,8 @@ export class Component extends React.Component {
     this.renderer = reportRenderer;
     Promise.resolve(portalData).then((m) => {
       this.mod = m;
-      let data = { cases: m.demoCases(), users: m.USERS.map((u) => ({ ...u })) };
+      // Accounts now live in Supabase (M4) and are loaded after sign-in, never with passcodes.
+      let data = { cases: m.demoCases(), users: [] };
       try {
         const raw = portalStore.read();
         if (raw) {
@@ -61,11 +66,9 @@ export class Component extends React.Component {
         if (c.id === 3 && m.fillMeridian) m.fillMeridian(c, m.SECTIONS);
       });
       const patch = { data };
-      let session = null;
       try {
         const raw = portalStore.read();
         const saved = raw ? JSON.parse(raw) : null;
-        if (saved && saved.session) session = saved.session;
         if (saved && saved.periods) {
           const yr = Math.round(Number(this.props.reportingYear ?? 2026)) || 2026;
           const keep = { ...saved.periods };
@@ -74,23 +77,10 @@ export class Component extends React.Component {
         }
       } catch (e) {}
       this.setState(patch);
-      const start = null; // startScreen removed (Application Guide D13)
-      if (start && start !== 'login') {
-        this.nav({ screen: start, me: { name: 'Administrator', role: 'admin' } });
-      } else if (session && session.me && session.me.role === 'rep') {
-        const u = data.users.find((x) => x.username === session.me.username);
-        if (u && u.active && !u.locked && u.role === 'rep' && data.cases.some((c) => c.id === u.institutionId)) {
-          this.setState({ me: { name: u.name, role: 'rep', username: u.username, institutionId: u.institutionId }, screen: 'pfi', caseId: u.institutionId });
-        }
-      } else if (session && session.me) {
-        // Reloading returns the analyst to the page they were last on.
-        this.setState({
-          me: session.me, screen: session.screen || 'cases',
-          caseId: session.caseId != null ? session.caseId : this.state.caseId,
-          code: session.code || this.state.code,
-        });
-      }
-      this.setState({}, () => this.afterLoad());
+      // The session comes from Supabase (cookies) rather than saved state; the address then
+      // decides the screen (afterLoad), so a reload returns the user to the page they were on.
+      // startScreen, which skipped sign-in as Administrator, is gone (Application Guide D13).
+      this.restoreSession().then(() => this.setState({}, () => this.afterLoad()));
     }).catch(() => this.setState({ loginErr: 'Could not load the assessment template.' }));
   }
 
@@ -832,7 +822,7 @@ export class Component extends React.Component {
     this.syncUrl(prev, prevState);
   }
 
-  componentWillUnmount() { clearTimeout(this._save); clearTimeout(this._t); }
+  componentWillUnmount() { clearTimeout(this._save); clearTimeout(this._t); this.stopIdleWatch(); }
 
   persist() {
     if (!this.state.data) return;
@@ -1034,7 +1024,7 @@ export class Component extends React.Component {
       onPw: (e) => this.setState({ pw: e.target.value }),
       onPwKey: (e) => { if (e.key === 'Enter') this.signIn(); },
       signIn: () => this.signIn(),
-      signOut: () => this.nav({ screen: 'login', me: null, pw: '', pending: null, np1: '', np2: '', pwErr: '', loginErr: '' }),
+      signOut: () => this.signOut(),
       onNp1: (e) => this.setState({ np1: e.target.value }),
       onNp2: (e) => this.setState({ np2: e.target.value }),
       onNpKey: (e) => { if (e.key === 'Enter') this.setPasscode(); },
@@ -2049,7 +2039,7 @@ export class Component extends React.Component {
   afterLoad() {
     const s = this.state;
     if (!s.me) {
-      if (s.screen !== 'changepw') this.goUrl('/login', true);
+      this.goUrl(s.screen === 'changepw' ? '/change-passcode' : '/login', true);
       return;
     }
     // A representative's address is always their portal (nav() would keep them there anyway,
@@ -2074,36 +2064,56 @@ export class Component extends React.Component {
     }
   }
 
+  // ————— Accounts (M4): checked on the server, same rules and messages as the prototype —————
+
+  // JSON call to the portal's own API. Network or server failures come back as { error }.
+  static api(url, body, method = 'POST') {
+    return fetch(url, {
+      method, headers: { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }).then((r) => r.json().catch(() => ({ error: 'The server did not respond. Try again.' })))
+      .catch(() => ({ error: 'The server could not be reached. Try again.' }));
+  }
+
+  // The accounts the signed-in user may see (all for staff, their own for a representative).
+  loadUsers() {
+    return fetch('/api/users').then((r) => r.json()).then((r) => {
+      if (Array.isArray(r.users)) this.setState((st) => ({ data: st.data ? { ...st.data, users: r.users } : st.data }));
+    }).catch(() => {});
+  }
+
+  applyProfileTheme(theme) {
+    if (theme !== 'light' && theme !== 'dark') return;
+    this.applyTheme(theme);
+    this.setState({ theme });
+  }
+
+  // Reload: pick up the Supabase session, as the prototype did from its saved session.
+  restoreSession() {
+    return fetch('/api/auth/me').then((r) => r.json()).then(async (r) => {
+      if (!r || !r.me) return;
+      this.applyProfileTheme(r.theme);
+      if (r.mustChange) { this.setState({ pending: r.me, screen: 'changepw' }); return; }
+      await this.loadUsers();
+      this.setState(r.me.role === 'rep'
+        ? { me: r.me, screen: 'pfi', caseId: r.me.institutionId }
+        : { me: r.me, screen: 'dashboard' });
+    }).catch(() => {});
+  }
+
   signIn() {
     const s = this.state;
     if (!s.data) { this.setState({ loginErr: 'Still loading the assessment template — try again in a moment.' }); return; }
-    const u = s.data.users.find((x) => x.username.toLowerCase() === s.username.trim().toLowerCase() && x.active);
-    if (!u) { this.setState({ loginErr: 'Invalid username or passcode.' }); return; }
-    if (u.locked) {
-      this.setState({ loginErr: 'Account locked. Contact an administrator to have a passcode reissued.', pw: '' });
-      return;
-    }
-    if (u.password !== s.pw) {
-      u.failed = (u.failed || 0) + 1;
-      const left = 3 - u.failed;
-      if (left <= 0) {
-        u.locked = true;
-        this.setState({ loginErr: 'Account locked after three failed attempts. Contact an administrator to have a passcode reissued.', pw: '' });
+    Component.api('/api/auth/sign-in', { username: s.username, passcode: s.pw }).then(async (r) => {
+      if (r.error || !r.me) { this.setState({ loginErr: r.error || 'Invalid username or passcode.', pw: '' }); return; }
+      this.applyProfileTheme(r.theme);
+      if (r.mustChange) {
+        this.nav({ pending: r.me, screen: 'changepw', loginErr: '', pw: '', np1: '', np2: '', pwErr: '' });
         return;
       }
-      this.setState({ loginErr: `Invalid username or passcode. ${left} attempt${left === 1 ? '' : 's'} remaining before the account locks.`, pw: '' });
-      return;
-    }
-    if (u.role === 'rep' && !this.state.data.cases.some((c) => c.id === u.institutionId)) {
-      this.setState({ loginErr: 'This account is not linked to an institution. Contact an administrator.', pw: '' });
-      return;
-    }
-    u.failed = 0;
-    if (u.mustChange) {
-      this.nav({ pending: u, screen: 'changepw', loginErr: '', pw: '', np1: '', np2: '', pwErr: '' });
-      return;
-    }
-    this.nav({ me: { name: u.name, role: u.role, username: u.username, institutionId: u.role === 'rep' ? u.institutionId : null }, screen: u.role === 'rep' ? 'pfi' : 'dashboard', loginErr: '', pw: '' });
+      await this.loadUsers();
+      this.nav({ me: r.me, screen: r.me.role === 'rep' ? 'pfi' : 'dashboard', loginErr: '', pw: '' });
+    });
   }
 
   setPasscode() {
@@ -2112,18 +2122,46 @@ export class Component extends React.Component {
     if (!u) { this.nav({ screen: 'login' }); return; }
     const a = s.np1.trim();
     const b = s.np2.trim();
-    if (a.length < 4) { this.setState({ pwErr: 'Use at least four characters.' }); return; }
+    if (a.length < MIN_PASSCODE) { this.setState({ pwErr: MIN_PASSCODE_MESSAGE }); return; }
     if (a !== b) { this.setState({ pwErr: 'The two entries do not match.' }); return; }
-    if (a === u.password) { this.setState({ pwErr: 'Choose a passcode different from the one you were issued.' }); return; }
-    u.password = a;
-    u.mustChange = false;
-    const issued = { ...s.issued };
-    delete issued[u.username];
-    this.nav({
-      me: { name: u.name, role: u.role, username: u.username, institutionId: u.role === 'rep' ? u.institutionId : null }, screen: u.role === 'rep' ? 'pfi' : 'dashboard',
-      pending: null, np1: '', np2: '', pwErr: '', issued,
+    // "Different from the one you were issued" is checked by Supabase Auth on the server.
+    Component.api('/api/auth/change-passcode', { passcode: a, confirm: b }).then(async (r) => {
+      if (r.error || !r.me) { this.setState({ pwErr: r.error || 'The passcode could not be changed. Try again.' }); return; }
+      const issued = { ...this.state.issued };
+      delete issued[u.username];
+      await this.loadUsers();
+      this.nav({
+        me: r.me, screen: r.me.role === 'rep' ? 'pfi' : 'dashboard',
+        pending: null, np1: '', np2: '', pwErr: '', issued,
+      });
+      this.flash('Passcode updated');
     });
-    this.flash('Passcode updated');
+  }
+
+  signOut(loginErr = '') {
+    Component.api('/api/auth/sign-out', {}).then(() => {
+      this.nav({
+        screen: 'login', me: null, pw: '', pending: null, np1: '', np2: '', pwErr: '', loginErr,
+        data: this.state.data ? { ...this.state.data, users: [] } : this.state.data,
+      });
+    });
+  }
+
+  // 30 minutes without mouse, keyboard or scroll activity signs the user out (IT notes 3.1).
+  startIdleWatch() {
+    this._lastActive = Date.now();
+    this._onActivity = () => { this._lastActive = Date.now(); };
+    ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach((ev) => window.addEventListener(ev, this._onActivity, { passive: true }));
+    this._idleTimer = setInterval(() => {
+      if ((this.state.me || this.state.pending) && Date.now() - this._lastActive > IDLE_LIMIT_MS) {
+        this.signOut('Signed out after 30 minutes without activity.');
+      }
+    }, 60 * 1000);
+  }
+
+  stopIdleWatch() {
+    clearInterval(this._idleTimer);
+    if (this._onActivity) ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach((ev) => window.removeEventListener(ev, this._onActivity));
   }
 
   createCase() {
@@ -2145,24 +2183,24 @@ export class Component extends React.Component {
   addUser() {
     const s = this.state;
     if (!s.nu.name.trim() || !s.nu.username.trim()) return;
-    s.data.users.push({
-      id: s.data.users.length + 1, name: s.nu.name.trim(),
-      username: s.nu.username.trim().toLowerCase(), password: s.nu.password, role: s.nu.role, active: true,
-      institutionId: s.nu.role === 'rep' ? Number(s.nu.institutionId) : null,
-      failed: 0, locked: false, mustChange: true,
+    Component.api('/api/users', {
+      name: s.nu.name.trim(), username: s.nu.username.trim(), role: s.nu.role,
+      institutionId: s.nu.role === 'rep' ? Number(s.nu.institutionId) : null, passcode: s.nu.password,
+    }).then(async (r) => {
+      if (r.error) { this.flash(r.error); return; }
+      await this.loadUsers();
+      this.setState({ nu: { name: '', username: '', role: 'analyst', password: '', institutionId: '' } });
+      this.flash('Account created · passcode change required at first sign-in');
     });
-    this.setState({ nu: { name: '', username: '', role: 'analyst', password: '', institutionId: '' } });
-    this.flash('Account created · passcode change required at first sign-in');
   }
 
   issuePasscode(u) {
-    const code = String(Math.floor(1000 + Math.random() * 9000));
     const wasLocked = !!u.locked;
-    u.password = code;
-    u.locked = false;
-    u.failed = 0;
-    u.mustChange = true;
-    this.setState({ issued: { ...this.state.issued, [u.username]: code } });
-    this.flash(`${wasLocked ? 'Account unlocked · passcode' : 'Passcode'} reissued for ${u.username}: ${code}`);
+    Component.api(`/api/users/${encodeURIComponent(u.id)}/reissue`, {}).then(async (r) => {
+      if (r.error || !r.code) { this.flash(r.error || 'The passcode could not be reissued.'); return; }
+      await this.loadUsers();
+      this.setState({ issued: { ...this.state.issued, [u.username]: r.code } });
+      this.flash(`${wasLocked ? 'Account unlocked · passcode' : 'Passcode'} reissued for ${u.username}: ${r.code}`);
+    });
   }
 }

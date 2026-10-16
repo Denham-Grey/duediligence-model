@@ -1,8 +1,6 @@
 import { Cormorant_Garamond } from 'next/font/google';
 import '@/styles/broadsheet.css';
 import '@/styles/portal.css';
-import { ThemeProvider } from '@/components/ThemeProvider';
-import { ToastProvider } from '@/components/ToastProvider';
 
 // Self-hosted at build time by next/font: the browser never contacts Google (IT notes item 7).
 const cormorant = Cormorant_Garamond({
@@ -21,11 +19,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={cormorant.variable}>
-      <body>
-        <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
-        </ThemeProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

@@ -1,6 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- The portal mark: the yellow "+" square from the DENHAM + GREY wordmark. -->
-  <rect width="32" height="32" fill="#FFD300"/>
-  <rect x="8" y="14" width="16" height="4" fill="#23262a"/>
-  <rect x="14" y="8" width="4" height="16" fill="#23262a"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="437 74 270 270">
+  <!-- The Denham & Grey emblem, redrawn from reference/brand/denham-grey-logo.jpg at the logo's own
+       coordinates (pixels of the 1144 × 590 original): five yellow bars, five grey dots, on white. -->
+  <rect x="437" y="74" width="270" height="270" rx="44" fill="#ffffff"/>
+  <g fill="#F8E30A">
+    <rect x="445" y="203" width="29" height="85" rx="7"/>
+    <rect x="501" y="171" width="29" height="116" rx="7"/>
+    <rect x="557" y="182" width="29" height="146" rx="7"/>
+    <rect x="613" y="132" width="29" height="173" rx="7"/>
+    <rect x="669" y="197" width="30" height="116" rx="7"/>
+  </g>
+  <g fill="#747478">
+    <circle cx="460" cy="172.5" r="14.7"/>
+    <circle cx="515.5" cy="317" r="14.7"/>
+    <circle cx="571.5" cy="150.5" r="14.7"/>
+    <circle cx="627.5" cy="100.5" r="14.7"/>
+    <circle cx="684" cy="166.5" r="14.7"/>
+  </g>
 </svg>
